@@ -154,13 +154,28 @@ class ASLTranslatorApp(ctk.CTk):
         # ==========================================
         self.left_panel = ctk.CTkFrame(self, corner_radius=15)
         self.left_panel.grid(row=0, column=0, padx=(15, 10), pady=15, sticky="nsew")
-        self.left_panel.grid_rowconfigure(0, weight=1)
-        self.left_panel.grid_rowconfigure(1, weight=0)
+        self.left_panel.grid_rowconfigure(0, weight=0)
+        self.left_panel.grid_rowconfigure(1, weight=1)
+        self.left_panel.grid_rowconfigure(2, weight=0)
         self.left_panel.grid_columnconfigure(0, weight=1)
+
+        # Top Header Bar (Top Left About Button)
+        self.top_header = ctk.CTkFrame(self.left_panel, fg_color="transparent")
+        self.top_header.grid(row=0, column=0, padx=15, pady=(15, 0), sticky="ew")
+
+        self.about_btn = ctk.CTkButton(
+            self.top_header,
+            text="About",
+            command=self.open_about_window,
+            width=80,
+            fg_color="#343a40",
+            hover_color="#495057"
+        )
+        self.about_btn.pack(side="left")
 
         # Video Frame Container
         self.video_container = ctk.CTkFrame(self.left_panel, fg_color="#1a1a1a", corner_radius=12)
-        self.video_container.grid(row=0, column=0, padx=15, pady=(15, 10), sticky="nsew")
+        self.video_container.grid(row=1, column=0, padx=15, pady=(10, 10), sticky="nsew")
         self.video_container.grid_rowconfigure(0, weight=1)
         self.video_container.grid_columnconfigure(0, weight=1)
 
@@ -174,7 +189,7 @@ class ASLTranslatorApp(ctk.CTk):
 
         # Toolbar
         self.cam_toolbar = ctk.CTkFrame(self.left_panel, fg_color="transparent")
-        self.cam_toolbar.grid(row=1, column=0, padx=15, pady=(0, 15), sticky="ew")
+        self.cam_toolbar.grid(row=2, column=0, padx=15, pady=(0, 15), sticky="ew")
 
         self.toggle_cam_btn = ctk.CTkButton(
             self.cam_toolbar,
@@ -214,9 +229,18 @@ class ASLTranslatorApp(ctk.CTk):
         self.app_title = ctk.CTkLabel(
             self.right_panel,
             text="SignTrack",
-            font=ctk.CTkFont(size=22, weight="bold")
+            font=ctk.CTkFont(size=32, weight="bold")
         )
-        self.app_title.pack(pady=(15, 8))
+        self.app_title.pack(pady=(15, 2))
+
+        # Subtitle / Placeholder text
+        self.app_subtitle = ctk.CTkLabel(
+            self.right_panel,
+            text="Sign language translator with hand tracking",
+            font=ctk.CTkFont(size=12),
+            text_color="#888888"
+        )
+        self.app_subtitle.pack(pady=(0, 12))
 
         # --- MODE SELECTOR ---
         self.mode_selector = ctk.CTkSegmentedButton(
@@ -496,6 +520,43 @@ class ASLTranslatorApp(ctk.CTk):
     def toggle_skeleton(self):
         self.draw_skeleton = not self.draw_skeleton
         self.toggle_skel_btn.configure(text="Hide Skeleton" if self.draw_skeleton else "Show Skeleton")
+
+    def open_about_window(self):
+        if hasattr(self, 'about_window') and self.about_window is not None and self.about_window.winfo_exists():
+            self.about_window.focus_force()
+            return
+
+        self.about_window = ctk.CTkToplevel(self)
+        self.about_window.title("About")
+        self.about_window.geometry("400x300")
+        self.about_window.after(100, lambda: self.about_window.focus_force())
+
+        # Title Label
+        title_label = ctk.CTkLabel(
+            self.about_window,
+            text="Creators:",
+            font=ctk.CTkFont(size=22, weight="bold")
+        )
+        title_label.pack(pady=(20, 10))
+
+        # Bullet List Container
+        bullet_frame = ctk.CTkFrame(self.about_window, fg_color="transparent")
+        bullet_frame.pack(padx=40, pady=10, fill="x")
+
+        creators = [
+            "• Pisit Boonyingruangrong",
+            "• Thampapont Maolanont",
+            "• Gonchawin Chotpiyaanan"
+        ]
+
+        for creator in creators:
+            item_label = ctk.CTkLabel(
+                bullet_frame,
+                text=creator,
+                font=ctk.CTkFont(size=14),
+                anchor="w"
+            )
+            item_label.pack(fill="x", pady=4)
 
     def insert_space(self):
         self.textbox.insert("end", " ")
