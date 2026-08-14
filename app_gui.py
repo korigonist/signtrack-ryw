@@ -178,7 +178,7 @@ class ASLTranslatorApp(ctk.CTk):
 
         self.toggle_cam_btn = ctk.CTkButton(
             self.cam_toolbar,
-            text="⏸ Pause Feed",
+            text="Pause Feed",
             command=self.toggle_camera,
             width=130,
             fg_color="#343a40",
@@ -188,7 +188,7 @@ class ASLTranslatorApp(ctk.CTk):
 
         self.toggle_skel_btn = ctk.CTkButton(
             self.cam_toolbar,
-            text="🦴 Hide Skeleton",
+            text="Hide Skeleton",
             command=self.toggle_skeleton,
             width=130,
             fg_color="#343a40",
@@ -221,15 +221,15 @@ class ASLTranslatorApp(ctk.CTk):
         # --- MODE SELECTOR ---
         self.mode_selector = ctk.CTkSegmentedButton(
             self.right_panel,
-            values=["🔤 Alphabet Mode", "💬 Word / Action Mode"],
+            values=["Alphabet Mode", "Word Mode"],
             command=self.on_mode_change,
             selected_color="#2563eb",
             font=ctk.CTkFont(size=13, weight="bold")
         )
-        self.mode_selector.set("🔤 Alphabet Mode")
+        self.mode_selector.set("Alphabet Mode")
         self.mode_selector.pack(fill="x", padx=15, pady=(0, 10))
 
-        # --- Detected Output Card ---
+        # Detected Output Card
         self.pred_card = ctk.CTkFrame(self.right_panel, fg_color="#2b2d31", corner_radius=12)
         self.pred_card.pack(fill="x", padx=15, pady=5)
 
@@ -272,74 +272,60 @@ class ASLTranslatorApp(ctk.CTk):
         )
         self.textbox.pack(fill="both", expand=True, padx=15, pady=5)
 
-        # --- Action Buttons ---
+        # action buttons 
         self.action_grid = ctk.CTkFrame(self.right_panel, fg_color="transparent")
         self.action_grid.pack(fill="x", padx=15, pady=(8, 12))
 
         self.btn_space = ctk.CTkButton(
             self.action_grid,
-            text="␣ Space",
+            text="Space",
             command=self.insert_space,
             width=75,
             fg_color="#2563eb",
             hover_color="#1d4ed8"
         )
-        self.btn_space.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
+        self.btn_space.grid(row=0, column=0, padx=4, pady=2, sticky="ew")
 
         self.btn_backspace = ctk.CTkButton(
             self.action_grid,
-            text="⌫ Backspace",
+            text="Backspace",
             command=self.backspace_text,
             width=85,
             fg_color="#4b5563",
             hover_color="#374151"
         )
-        self.btn_backspace.grid(row=0, column=1, padx=2, pady=2, sticky="ew")
+        self.btn_backspace.grid(row=0, column=1, padx=4, pady=2, sticky="ew")
 
         self.btn_clear = ctk.CTkButton(
             self.action_grid,
-            text="🗑 Clear",
+            text="Clear",
             command=self.clear_text,
             width=75,
             fg_color="#ef4444",
             hover_color="#dc2626"
         )
-        self.btn_clear.grid(row=0, column=2, padx=2, pady=2, sticky="ew")
+        self.btn_clear.grid(row=0, column=2, padx=4, pady=2, sticky="ew")
 
-        self.btn_speak = ctk.CTkButton(
-            self.action_grid,
-            text="🔊 Speak",
-            command=self.speak_sentence,
-            width=75,
-            fg_color="#10b981",
-            hover_color="#059669",
-            state="normal" if TTS_AVAILABLE else "disabled"
-        )
-        self.btn_speak.grid(row=0, column=3, padx=2, pady=2, sticky="ew")
-
-        self.action_grid.grid_columnconfigure((0, 1, 2, 3), weight=1)
+        self.action_grid.grid_columnconfigure((0, 1, 2), weight=1)
 
     def on_mode_change(self, value):
-        """Switches between Alphabet and Word/Action mode."""
+        # toggle between letter mode and word mode
         if "Alphabet" in value:
             self.translation_mode = "Alphabet"
             self.pred_card_header.configure(text="DETECTED LETTER")
             self.pred_letter_label.configure(text="-")
             self.hold_progress.set(0)
-            print("Switched to Alphabet Mode")
+            print("Switched to Letter Mode")
         else:
             self.translation_mode = "Word"
             self.pred_card_header.configure(text="DETECTED WORD / ACTION")
             self.pred_letter_label.configure(text="-")
             self.word_sequence = []
             self.hold_progress.set(0)
-            print("Switched to Word / Action Mode")
+            print("Switched to Word Mode")
 
-    # ==========================================
     # VIDEO & PREDICTION PIPELINE
-    # ==========================================
     def update_frame(self):
-        """Main camera loop processing current selected mode."""
         if self.is_camera_running and self.cap.isOpened():
             success, frame = self.cap.read()
             if success:
@@ -505,11 +491,11 @@ class ASLTranslatorApp(ctk.CTk):
     # ==========================================
     def toggle_camera(self):
         self.is_camera_running = not self.is_camera_running
-        self.toggle_cam_btn.configure(text="⏸ Pause Feed" if self.is_camera_running else "▶ Resume Feed")
+        self.toggle_cam_btn.configure(text="Pause Feed" if self.is_camera_running else "Resume Feed")
 
     def toggle_skeleton(self):
         self.draw_skeleton = not self.draw_skeleton
-        self.toggle_skel_btn.configure(text="🦴 Hide Skeleton" if self.draw_skeleton else "🦴 Show Skeleton")
+        self.toggle_skel_btn.configure(text="Hide Skeleton" if self.draw_skeleton else "Show Skeleton")
 
     def insert_space(self):
         self.textbox.insert("end", " ")

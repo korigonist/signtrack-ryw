@@ -1,0 +1,7 @@
+numpy<2.0.0
+opencv-python
+mediapipe
+customtkinter
+Pillow
+pyttsx3
+scikit-learn
