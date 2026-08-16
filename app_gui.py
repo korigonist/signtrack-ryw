@@ -32,6 +32,13 @@ ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
 
+def get_resource_path(relative_path):
+    """Get absolute path to resource, works for dev and PyInstaller (_MEIPASS)."""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+
+
 class ASLTranslatorApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -45,7 +52,7 @@ class ASLTranslatorApp(ctk.CTk):
         self.translation_mode = "Alphabet"
 
         # --- 1. Load Alphabet Model (asl_model.p) ---
-        self.alphabet_model_path = os.path.join(os.path.dirname(__file__), "asl_model.p")
+        self.alphabet_model_path = get_resource_path("asl_model.p")
         self.alphabet_model = None
         self.load_alphabet_model()
 
@@ -128,8 +135,8 @@ class ASLTranslatorApp(ctk.CTk):
             print("⚠️ TensorFlow not available for Word model.")
             return
 
-        keras_path = os.path.join(os.path.dirname(__file__), "action.keras")
-        h5_path = os.path.join(os.path.dirname(__file__), "action.h5")
+        keras_path = get_resource_path("action.keras")
+        h5_path = get_resource_path("action.h5")
 
         model_file = keras_path if os.path.exists(keras_path) else (h5_path if os.path.exists(h5_path) else None)
 
@@ -165,9 +172,12 @@ class ASLTranslatorApp(ctk.CTk):
 
         self.about_btn = ctk.CTkButton(
             self.top_header,
-            text="About",
+            text="i",
             command=self.open_about_window,
-            width=80,
+            width=32,
+            height=32,
+            corner_radius=16,
+            font=ctk.CTkFont(size=16),
             fg_color="#343a40",
             hover_color="#495057"
         )
