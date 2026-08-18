@@ -1,3 +1,4 @@
+from PIL import ImagePalette
 import os
 import sys
 import time
@@ -13,12 +14,21 @@ from PIL import Image, ImageTk
 
 import customtkinter as ctk
 
-# Try importing tensorflow for Word/Action LSTM model
+# Try importing keras / tensorflow for Word/Action LSTM model
+TF_AVAILABLE = False
+KERAS_LOAD_MODEL = None
+
 try:
-    import tensorflow as tf
+    import keras
+    KERAS_LOAD_MODEL = keras.models.load_model
     TF_AVAILABLE = True
-except ImportError:
-    TF_AVAILABLE = False
+except Exception:
+    try:
+        import tensorflow as tf
+        KERAS_LOAD_MODEL = tf.keras.models.load_model
+        TF_AVAILABLE = True
+    except Exception:
+        TF_AVAILABLE = False
 
 # Try importing pyttsx3 for text-to-speech
 try:
@@ -130,9 +140,9 @@ class ASLTranslatorApp(ctk.CTk):
             print(f"⚠️ Alphabet model file '{self.alphabet_model_path}' not found!")
 
     def load_word_model(self):
-        """Loads the Keras LSTM Word model (action.keras or action.h5)."""
-        if not TF_AVAILABLE:
-            print("⚠️ TensorFlow not available for Word model.")
+        # Loads LSTM model
+        if not TF_AVAILABLE and KERAS_LOAD_MODEL is None:
+            print("⚠️ Keras/TensorFlow not available for Word model.")
             return
 
         keras_path = get_resource_path("action.keras")
@@ -141,20 +151,47 @@ class ASLTranslatorApp(ctk.CTk):
         model_file = keras_path if os.path.exists(keras_path) else (h5_path if os.path.exists(h5_path) else None)
 
         if model_file:
-            try:
-                self.word_model = tf.keras.models.load_model(model_file)
+            loaded_model = None
+            # 1. Try KERAS_LOAD_MODEL
+            if KERAS_LOAD_MODEL:
+                try:
+                    loaded_model = KERAS_LOAD_MODEL(model_file)
+                except Exception as e:
+                    print(f"Primary load attempt error: {e}")
+
+            # 2. Fallback to keras or tensorflow.keras directly
+            if loaded_model is None:
+                try:
+                    import keras
+                    loaded_model = keras.models.load_model(model_file)
+                except Exception:
+                    try:
+                        import tensorflow as tf
+                        loaded_model = tf.keras.models.load_model(model_file)
+                    except Exception as e:
+                        print(f"Fallback load attempt error: {e}")
+
+            if loaded_model is not None:
+                self.word_model = loaded_model
                 print(f" Successfully loaded Word/Action model ({os.path.basename(model_file)})!")
-            except Exception as e:
-                print(f"❌ Error loading Word model: {e}")
+            else:
+                print(f" Error loading Word model from {model_file}")
                 self.word_model = None
         else:
-            print("⚠️ No Word model file (action.keras/action.h5) found.")
+            print("No Word model file (action.keras/action.h5) found.")
 
     def setup_ui(self):
-        """Builds the main user interface with mode switcher."""
         self.grid_columnconfigure(0, weight=3)
         self.grid_columnconfigure(1, weight=2)
         self.grid_rowconfigure(0, weight=1)
+
+        icon_path = get_resource_path("images/creatoricon.png")
+
+        try:
+            pil_image = Image.open(icon_path)
+            about_icon = ctk.CTkImage(pil_image, size=(20, 20))
+        except:
+            about_icon = None
 
         # ==========================================
         # LEFT PANEL: Video Feed & Camera Controls
@@ -172,16 +209,29 @@ class ASLTranslatorApp(ctk.CTk):
 
         self.about_btn = ctk.CTkButton(
             self.top_header,
-            text="i",
+            text="",
             command=self.open_about_window,
-            width=32,
-            height=32,
+            image=about_icon,
+            width=16,
+            height=16,
             corner_radius=16,
-            font=ctk.CTkFont(size=16),
             fg_color="#343a40",
             hover_color="#495057"
         )
+
         self.about_btn.pack(side="left")
+        # self.about_btn = ctk.CTkButton(
+        #     self.top_header,
+        #     text="i",
+        #     command=self.open_about_window,
+        #     width=32,
+        #     height=32,
+        #     corner_radius=16,
+        #     font=ctk.CTkFont(size=16),
+        #     fg_color="#343a40",
+        #     hover_color="#495057"
+        # )
+        # self.about_btn.pack(side="left")
 
         # Video Frame Container
         self.video_container = ctk.CTkFrame(self.left_panel, fg_color="#1a1a1a", corner_radius=12)
@@ -467,30 +517,43 @@ class ASLTranslatorApp(ctk.CTk):
         self.word_sequence = self.word_sequence[-30:]
 
         seq_len = len(self.word_sequence)
-        self.hold_progress.set(seq_len / 30.0)
 
         predicted_word = "-"
-        if seq_len == 30 and self.word_model:
+        if seq_len < 30:
+            self.hold_progress.set(seq_len / 30.0)
+            self.pred_letter_label.configure(text=f"Buffering... ({seq_len}/30)")
+        elif self.word_model:
             try:
                 res = self.word_model.predict(np.expand_dims(self.word_sequence, axis=0), verbose=0)[0]
                 best_idx = np.argmax(res)
-                confidence = res[best_idx]
-                
-                self.word_predictions.append(best_idx)
-                
-                if confidence > self.word_threshold:
-                    predicted_word = self.actions[best_idx].upper()
+                confidence = float(res[best_idx])
 
-                    # Commit word if consistent across last 10 predictions
-                    if len(self.word_predictions) >= 10 and np.unique(self.word_predictions[-10:])[0] == best_idx:
-                        current_text = self.textbox.get("0.0", "end-1c").strip()
-                        words = current_text.split()
-                        if not words or words[-1].upper() != predicted_word:
-                            self.textbox.insert("end", f" {predicted_word}")
+                self.word_predictions.append(best_idx)
+                self.word_predictions = self.word_predictions[-20:]
+
+                recent_preds = self.word_predictions[-10:]
+                match_count = sum(1 for p in recent_preds if p == best_idx)
+                self.hold_progress.set(match_count / 10.0)
+
+                clean_word = self.actions[best_idx].upper()
+
+                if confidence > 0.5:
+                    predicted_word = f"{clean_word} ({int(confidence * 100)}%)"
+
+                # Commit word if consistent across last 10 predictions and above threshold
+                if confidence >= self.word_threshold and len(recent_preds) == 10 and all(p == best_idx for p in recent_preds):
+                    current_text = self.textbox.get("0.0", "end-1c")
+                    words = current_text.strip().split()
+                    if not words or words[-1].upper() != clean_word:
+                        prefix = " " if current_text and not current_text.endswith(" ") else ""
+                        self.textbox.insert("end", f"{prefix}{clean_word}")
+                        if self.tts_engine:
+                            self.speak_sentence()
             except Exception as e:
                 print(f"Word Model Error: {e}")
 
-        self.pred_letter_label.configure(text=predicted_word if seq_len == 30 else f"Buffering... ({seq_len}/30)")
+            self.pred_letter_label.configure(text=predicted_word)
+
         return frame
 
     def draw_holistic_landmarks(self, image, results):
@@ -538,7 +601,7 @@ class ASLTranslatorApp(ctk.CTk):
 
         self.about_window = ctk.CTkToplevel(self)
         self.about_window.title("About")
-        self.about_window.geometry("400x300")
+        self.about_window.geometry("400x240")
         self.about_window.after(100, lambda: self.about_window.focus_force())
 
         # Title Label
@@ -547,16 +610,16 @@ class ASLTranslatorApp(ctk.CTk):
             text="Creators:",
             font=ctk.CTkFont(size=22, weight="bold")
         )
-        title_label.pack(pady=(20, 10))
+        title_label.pack(pady=(0, 0))
 
         # Bullet List Container
         bullet_frame = ctk.CTkFrame(self.about_window, fg_color="transparent")
         bullet_frame.pack(padx=40, pady=10, fill="x")
 
         creators = [
-            "• Pisit Boonyingruangrong",
-            "• Thampapont Maolanont",
-            "• Gonchawin Chotpiyaanan"
+            "• Thampapont Maolanont (Class: M.4/18)",
+            "• Pisit Boonyingruangrong (Class: M.4/18)",
+            "• Gonchawin Chotpiyaanan (Class: M.4/18)"
         ]
 
         for creator in creators:
@@ -566,7 +629,28 @@ class ASLTranslatorApp(ctk.CTk):
                 font=ctk.CTkFont(size=14),
                 anchor="w"
             )
-            item_label.pack(fill="x", pady=4)
+            item_label.pack(fill="x", pady=2)
+
+        program_label = ctk.CTkLabel(
+            self.about_window,
+            text="English Program",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        program_label.pack(pady=(0, 0))
+
+        school_label = ctk.CTkLabel(
+            self.about_window,
+            text="Rayongwittayakom School",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        school_label.pack(pady=(0, 0))
+
+        status_label = ctk.CTkLabel(
+            self.about_window,
+            text="SignTrack program (version 1.0), Released August 17th 2026",
+            font=ctk.CTkFont(size=12)
+        )
+        status_label.pack(pady=(10, 0))
 
     def insert_space(self):
         self.textbox.insert("end", " ")
