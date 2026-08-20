@@ -1,7 +1,6 @@
 from PIL import ImagePalette
 import os
 import sys
-import time
 import pickle
 import threading
 import warnings
