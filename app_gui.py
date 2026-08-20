@@ -638,7 +638,7 @@ class ASLTranslatorApp(ctk.CTk):
         )
         program_label.pack(pady=(0, 0))
 
-        # here's something to commit #2
+        # here's something to commit once again
         school_label = ctk.CTkLabel(
             self.about_window,
             text="Rayongwittayakom School",
