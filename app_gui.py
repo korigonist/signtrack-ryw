@@ -394,6 +394,7 @@ class ASLTranslatorApp(ctk.CTk):
 
     def on_mode_change(self, value):
         # toggle between letter mode and word mode
+        # something to commit again
         if "Alphabet" in value:
             self.translation_mode = "Alphabet"
             self.pred_card_header.configure(text="DETECTED LETTER")
