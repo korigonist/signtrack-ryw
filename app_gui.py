@@ -67,7 +67,14 @@ class ASLTranslatorApp(ctk.CTk):
 
         # --- 2. Load Word/Action Model (action.keras / action.h5) ---
         self.word_model = None
-        self.actions = np.array(['hello', 'thanks', 'iloveyou'])
+        self.word_model_error = None
+        self.word_map = {
+            'A': 'Hello', 'B': 'How', 'C': 'You', 'D': 'Your',
+            'E': 'Name', 'F': 'What', 'G': 'My', 'H': "I'm",
+            'I': 'Fine', 'J': 'Meet you', 'K': 'Nice', 'L': 'Thanks',
+            'M': 'I Love You', 'N': 'COOL!', 'O': 'Again', 'P': 'Yes',
+            'Q': 'No', 'R': 'Good', 'S': 'Bad', 'T': 'Morning', 'U': 'idle'
+        }
         self.load_word_model()
 
         # --- MediaPipe Pipelines ---
@@ -139,45 +146,20 @@ class ASLTranslatorApp(ctk.CTk):
             print(f"⚠️ Alphabet model file '{self.alphabet_model_path}' not found!")
 
     def load_word_model(self):
-        # Loads LSTM model
-        if not TF_AVAILABLE and KERAS_LOAD_MODEL is None:
-            print("⚠️ Keras/TensorFlow not available for Word model.")
+        model_file = get_resource_path("asl_holistic_model.p")
+        if not os.path.exists(model_file):
+            self.word_model_error = "asl_holistic_model.p not found"
+            print(f"Word model unavailable: {model_file} not found.")
             return
 
-        keras_path = get_resource_path("action.keras")
-        h5_path = get_resource_path("action.h5")
-
-        model_file = keras_path if os.path.exists(keras_path) else (h5_path if os.path.exists(h5_path) else None)
-
-        if model_file:
-            loaded_model = None
-            # 1. Try KERAS_LOAD_MODEL
-            if KERAS_LOAD_MODEL:
-                try:
-                    loaded_model = KERAS_LOAD_MODEL(model_file)
-                except Exception as e:
-                    print(f"Primary load attempt error: {e}")
-
-            # 2. Fallback to keras or tensorflow.keras directly
-            if loaded_model is None:
-                try:
-                    import keras
-                    loaded_model = keras.models.load_model(model_file)
-                except Exception:
-                    try:
-                        import tensorflow as tf
-                        loaded_model = tf.keras.models.load_model(model_file)
-                    except Exception as e:
-                        print(f"Fallback load attempt error: {e}")
-
-            if loaded_model is not None:
-                self.word_model = loaded_model
-                print(f" Successfully loaded Word/Action model ({os.path.basename(model_file)})!")
-            else:
-                print(f" Error loading Word model from {model_file}")
-                self.word_model = None
-        else:
-            print("No Word model file (action.keras/action.h5) found.")
+        try:
+            with open(model_file, 'rb') as f:
+                model_data = pickle.load(f)
+            self.word_model = model_data.get('model', model_data)
+            print(" Successfully loaded Word model (asl_holistic_model.p)!")
+        except Exception as e:
+            self.word_model_error = "Could not load asl_holistic_model.p"
+            print(f"Word model unavailable: {e}")
 
     def setup_ui(self):
         self.grid_columnconfigure(0, weight=3)
@@ -499,12 +481,24 @@ class ASLTranslatorApp(ctk.CTk):
             self.hold_progress.set(0)
 
     def extract_holistic_keypoints(self, results):
-        """Extracts 1662 keypoints for Holistic model (pose, face, left hand, right hand)."""
-        pose = np.array([[res.x, res.y, res.z, res.visibility] for res in results.pose_landmarks.landmark]).flatten() if results.pose_landmarks else np.zeros(33*4)
-        face = np.array([[res.x, res.y, res.z] for res in results.face_landmarks.landmark]).flatten() if results.face_landmarks else np.zeros(468*3)
-        lh = np.array([[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark]).flatten() if results.left_hand_landmarks else np.zeros(21*3)
-        rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
-        return np.concatenate([pose, face, lh, rh])
+        """Extract the same 144 wrist-relative hand/arm features as the notebook."""
+        features = []
+        for hand_landmarks in (results.left_hand_landmarks, results.right_hand_landmarks):
+            if hand_landmarks:
+                wrist = hand_landmarks.landmark[0]
+                for landmark in hand_landmarks.landmark:
+                    features.extend([landmark.x - wrist.x, landmark.y - wrist.y, landmark.z - wrist.z])
+            else:
+                features.extend([0.0] * 63)
+
+        if results.pose_landmarks:
+            reference = results.pose_landmarks.landmark[11]
+            for index in [11, 12, 13, 14, 15, 16]:
+                landmark = results.pose_landmarks.landmark[index]
+                features.extend([landmark.x - reference.x, landmark.y - reference.y, landmark.z - reference.z])
+        else:
+            features.extend([0.0] * 18)
+        return features
 
     def process_word_mode(self, frame):
         """Word / Action mode processing using action.keras / action.h5 and Holistic detector."""
@@ -514,47 +508,19 @@ class ASLTranslatorApp(ctk.CTk):
         if self.draw_skeleton:
             self.draw_holistic_landmarks(frame, results)
 
-        keypoints = self.extract_holistic_keypoints(results)
-        self.word_sequence.append(keypoints)
-        self.word_sequence = self.word_sequence[-30:]
-
-        seq_len = len(self.word_sequence)
-
+        features = self.extract_holistic_keypoints(results)
         predicted_word = "-"
-        if seq_len < 30:
-            self.hold_progress.set(seq_len / 30.0)
-            self.pred_letter_label.configure(text=f"Buffering... ({seq_len}/30)")
-        elif self.word_model:
+        if self.word_model and any(features):
             try:
-                res = self.word_model.predict(np.expand_dims(self.word_sequence, axis=0), verbose=0)[0]
-                best_idx = np.argmax(res)
-                confidence = float(res[best_idx])
-
-                self.word_predictions.append(best_idx)
-                self.word_predictions = self.word_predictions[-20:]
-
-                recent_preds = self.word_predictions[-10:]
-                match_count = sum(1 for p in recent_preds if p == best_idx)
-                self.hold_progress.set(match_count / 10.0)
-
-                clean_word = self.actions[best_idx].upper()
-
-                if confidence > 0.5:
-                    predicted_word = f"{clean_word} ({int(confidence * 100)}%)"
-
-                # Commit word if consistent across last 10 predictions and above threshold
-                if confidence >= self.word_threshold and len(recent_preds) == 10 and all(p == best_idx for p in recent_preds):
-                    current_text = self.textbox.get("0.0", "end-1c")
-                    words = current_text.strip().split()
-                    if not words or words[-1].upper() != clean_word:
-                        prefix = " " if current_text and not current_text.endswith(" ") else ""
-                        self.textbox.insert("end", f"{prefix}{clean_word}")
-                        if self.tts_engine:
-                            self.speak_sentence()
+                predicted_letter = str(self.word_model.predict([features])[0]).upper()
+                predicted_word = self.word_map.get(predicted_letter, predicted_letter)
+                self.pred_letter_label.configure(text=predicted_word)
             except Exception as e:
                 print(f"Word Model Error: {e}")
-
-            self.pred_letter_label.configure(text=predicted_word)
+        elif self.word_model_error:
+            self.pred_letter_label.configure(text=self.word_model_error)
+        else:
+            self.pred_letter_label.configure(text="Show both hands")
 
         return frame
 
