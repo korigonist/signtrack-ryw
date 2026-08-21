@@ -392,6 +392,7 @@ class ASLTranslatorApp(ctk.CTk):
 
         self.action_grid.grid_columnconfigure((0, 1, 2), weight=1)
 
+    # i'll give you something to commit here
     def on_mode_change(self, value):
         # toggle between letter mode and word mode
         # something to commit again
