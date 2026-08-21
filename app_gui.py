@@ -218,6 +218,7 @@ class ASLTranslatorApp(ctk.CTk):
             hover_color="#495057"
         )
 
+        # something to commit once again
         self.about_btn.pack(side="left")
         # self.about_btn = ctk.CTkButton(
         #     self.top_header,
