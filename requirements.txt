@@ -5,3 +5,4 @@ customtkinter
 Pillow
 pyttsx3
 scikit-learn
+tensorflow
