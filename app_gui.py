@@ -67,7 +67,6 @@ class ASLTranslatorApp(ctk.CTk):
 
         # --- 2. Load Word/Action Model (action.keras / action.h5) ---
         self.word_model = None
-        self.word_model_error = None
         self.actions = np.array(['hello', 'thanks', 'iloveyou'])
         self.load_word_model()
 
@@ -142,8 +141,7 @@ class ASLTranslatorApp(ctk.CTk):
     def load_word_model(self):
         # Loads LSTM model
         if not TF_AVAILABLE and KERAS_LOAD_MODEL is None:
-            self.word_model_error = "TensorFlow is not installed"
-            print("Word model unavailable: TensorFlow is not installed.")
+            print("⚠️ Keras/TensorFlow not available for Word model.")
             return
 
         keras_path = get_resource_path("action.keras")
@@ -176,12 +174,10 @@ class ASLTranslatorApp(ctk.CTk):
                 self.word_model = loaded_model
                 print(f" Successfully loaded Word/Action model ({os.path.basename(model_file)})!")
             else:
-                self.word_model_error = f"Could not load {os.path.basename(model_file)}"
-                print(f"Word model unavailable: could not load {model_file}")
+                print(f" Error loading Word model from {model_file}")
                 self.word_model = None
         else:
-            self.word_model_error = "No action.keras or action.h5 file found"
-            print("Word model unavailable: no action.keras or action.h5 file found.")
+            print("No Word model file (action.keras/action.h5) found.")
 
     def setup_ui(self):
         self.grid_columnconfigure(0, weight=3)
@@ -527,8 +523,7 @@ class ASLTranslatorApp(ctk.CTk):
         predicted_word = "-"
         if seq_len < 30:
             self.hold_progress.set(seq_len / 30.0)
-            status = self.word_model_error or f"Buffering... ({seq_len}/30)"
-            self.pred_letter_label.configure(text=status)
+            self.pred_letter_label.configure(text=f"Buffering... ({seq_len}/30)")
         elif self.word_model:
             try:
                 res = self.word_model.predict(np.expand_dims(self.word_sequence, axis=0), verbose=0)[0]
@@ -560,8 +555,6 @@ class ASLTranslatorApp(ctk.CTk):
                 print(f"Word Model Error: {e}")
 
             self.pred_letter_label.configure(text=predicted_word)
-        elif self.word_model_error:
-            self.pred_letter_label.configure(text=self.word_model_error)
 
         return frame
 
